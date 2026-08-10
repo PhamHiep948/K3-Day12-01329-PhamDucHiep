@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Day12 Agent</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #0f1419;
+      --panel: #171d25;
+      --line: #2a3441;
+      --text: #e8eef5;
+      --muted: #8b9bb0;
+      --accent: #3d9a7a;
+      --accent-2: #2f7d64;
+      --danger: #d46565;
+      --ok: #5cb88a;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "DM Sans", system-ui, sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(900px 500px at 10% -10%, #1a3a32 0%, transparent 55%),
+        radial-gradient(700px 400px at 100% 0%, #1a2433 0%, transparent 50%),
+        var(--bg);
+    }
+    main {
+      width: min(720px, calc(100% - 2rem));
+      margin: 0 auto;
+      padding: 2.5rem 0 3rem;
+    }
+    h1 {
+      margin: 0 0 0.35rem;
+      font-size: clamp(1.6rem, 4vw, 2rem);
+      letter-spacing: -0.02em;
+    }
+    .sub {
+      margin: 0 0 1.75rem;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+    .panel {
+      background: color-mix(in srgb, var(--panel) 92%, black);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 1.1rem 1.15rem;
+      margin-bottom: 1rem;
+    }
+    label {
+      display: block;
+      font-size: 0.82rem;
+      color: var(--muted);
+      margin-bottom: 0.35rem;
+    }
+    input, textarea {
+      width: 100%;
+      border: 1px solid var(--line);
+      background: #0c1117;
+      color: var(--text);
+      border-radius: 10px;
+      padding: 0.7rem 0.85rem;
+      font: inherit;
+      outline: none;
+    }
+    input:focus, textarea:focus { border-color: #3f7f6a; }
+    textarea { min-height: 110px; resize: vertical; }
+    .row {
+      display: grid;
+      grid-template-columns: 1.4fr 0.8fr;
+      gap: 0.75rem;
+    }
+    @media (max-width: 640px) {
+      .row { grid-template-columns: 1fr; }
+    }
+    .field { margin-bottom: 0.85rem; }
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.55rem;
+      margin-top: 0.25rem;
+    }
+    button {
+      border: 0;
+      border-radius: 999px;
+      padding: 0.65rem 1.05rem;
+      font: inherit;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.12s ease, opacity 0.12s ease;
+    }
+    button:hover { transform: translateY(-1px); }
+    button:disabled { opacity: 0.55; cursor: wait; transform: none; }
+    .primary { background: var(--accent); color: #042018; }
+    .primary:hover { background: var(--accent-2); color: #fff; }
+    .ghost {
+      background: transparent;
+      color: var(--text);
+      border: 1px solid var(--line);
+    }
+    pre {
+      margin: 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-family: "JetBrains Mono", ui-monospace, monospace;
+      font-size: 0.82rem;
+      line-height: 1.5;
+      color: #d5e0ec;
+    }
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.85rem;
+      color: var(--muted);
+      margin-bottom: 0.65rem;
+    }
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--muted);
+    }
+    .dot.ok { background: var(--ok); }
+    .dot.err { background: var(--danger); }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Day12 Agent</h1>
+    <p class="sub">UI gọi API production: health, ready và /ask (POST + API key).</p>
+
+    <section class="panel">
+      <div class="row">
+        <div class="field">
+          <label for="apiKey">X-API-Key</label>
+          <input id="apiKey" type="password" placeholder="Dán AGENT_API_KEY" autocomplete="off" />
+        </div>
+        <div class="field">
+          <label for="userId">X-User-Id</label>
+          <input id="userId" type="text" value="sv01" />
+        </div>
+      </div>
+      <div class="field">
+        <label for="question">Câu hỏi</label>
+        <textarea id="question" placeholder="Ví dụ: Docker là gì?"></textarea>
+      </div>
+      <div class="actions">
+        <button class="primary" id="askBtn" type="button">Gửi /ask</button>
+        <button class="ghost" id="healthBtn" type="button">GET /health</button>
+        <button class="ghost" id="readyBtn" type="button">GET /ready</button>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="status"><span class="dot" id="dot"></span><span id="meta">Chưa gọi API</span></div>
+      <pre id="out">{}</pre>
+    </section>
+  </main>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const out = $("out");
+    const meta = $("meta");
+    const dot = $("dot");
+    const KEY = "day12_api_key";
+    const USER = "day12_user_id";
+
+    $("apiKey").value = localStorage.getItem(KEY) || "";
+    $("userId").value = localStorage.getItem(USER) || "sv01";
+
+    function saveCreds() {
+      localStorage.setItem(KEY, $("apiKey").value.trim());
+      localStorage.setItem(USER, $("userId").value.trim() || "sv01");
+    }
+
+    function show(status, payload) {
+      const ok = status >= 200 && status < 300;
+      dot.className = "dot " + (ok ? "ok" : "err");
+      meta.textContent = "HTTP " + status + (ok ? " — OK" : " — lỗi");
+      out.textContent = typeof payload === "string"
+        ? payload
+        : JSON.stringify(payload, null, 2);
+    }
+
+    async function call(path, options = {}) {
+      saveCreds();
+      const buttons = document.querySelectorAll("button");
+      buttons.forEach((b) => (b.disabled = true));
+      try {
+        const res = await fetch(path, options);
+        let body;
+        const text = await res.text();
+        try { body = JSON.parse(text); } catch { body = text; }
+        show(res.status, body);
+      } catch (err) {
+        show(0, { error: String(err) });
+      } finally {
+        buttons.forEach((b) => (b.disabled = false));
+      }
+    }
+
+    $("healthBtn").onclick = () => call("/health");
+    $("readyBtn").onclick = () => call("/ready");
+    $("askBtn").onclick = () => {
+      const question = $("question").value.trim();
+      if (!question) {
+        show(400, { detail: "Nhập câu hỏi trước" });
+        return;
+      }
+      const key = $("apiKey").value.trim();
+      if (!key) {
+        show(401, { detail: "Thiếu X-API-Key — dán AGENT_API_KEY từ file .env" });
+        return;
+      }
+      call("/ask", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-API-Key": key,
+          "X-User-Id": $("userId").value.trim() || "sv01",
+        },
+        body: JSON.stringify({ question }),
+      });
+    };
+  </script>
+</body>
+</html>
